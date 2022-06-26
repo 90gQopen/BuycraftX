@@ -29,7 +29,6 @@ import net.buycraft.plugin.shared.config.BuycraftI18n;
 import net.buycraft.plugin.shared.tasks.PlayerJoinCheckTask;
 import net.buycraft.plugin.shared.util.AnalyticsSend;
 import net.buycraft.plugin.velocity.command.*;
-import net.buycraft.plugin.velocity.util.VersionCheck;
 import okhttp3.Cache;
 import okhttp3.ConnectionPool;
 import okhttp3.Dispatcher;
@@ -116,7 +115,7 @@ public class BuycraftPlugin {
         // Initialize API client.
         final String serverKey = configuration.getServerKey();
         if (serverKey == null || serverKey.equals("INVALID")) {
-            getLogger().info("Looks like this is a fresh setup. Get started by using 'tebex secret <key>' in the console.");
+            getLogger().info("Looks like this is a fresh setup. Please enter the key in the config. file");
         } else {
             getLogger().info("Validating your server key...");
             final BuyCraftAPI client = BuyCraftAPI.create(configuration.getServerKey(), httpClient);
@@ -132,20 +131,6 @@ public class BuycraftPlugin {
             apiClient = client;
         }
 
-        // Check for latest version.
-        if (configuration.isCheckForUpdates()) {
-            final VersionCheck check = new VersionCheck(this, platform.getPluginVersion(), configuration.getServerKey());
-            try {
-                runSyncTaskOnAsyncThread((Callable<Void>) () -> {
-                    check.verify();
-                    return null;
-                });
-            } catch (ExecutionException e) {
-                getLogger().error("Can't check for updates", e);
-            }
-            getServer().getEventManager().register(this, check);
-        }
-
         // Initialize placeholders.
         placeholderManager.addPlaceholder(new NamePlaceholder());
         placeholderManager.addPlaceholder(new UuidPlaceholder());
@@ -157,37 +142,41 @@ public class BuycraftPlugin {
                 .schedule();
         completedCommandsTask = new PostCompletedCommandsTask(platform);
         commandExecutor = new QueuedCommandExecutor(platform, completedCommandsTask);
+
         getServer().getScheduler()
                 .buildTask(this, completedCommandsTask)
                 .delay(1, TimeUnit.SECONDS)
                 .repeat(1, TimeUnit.SECONDS)
                 .schedule();
+
         getServer().getScheduler()
                 .buildTask(this, (Runnable) commandExecutor)
                 .delay(50, TimeUnit.MILLISECONDS)
                 .repeat(1, TimeUnit.MILLISECONDS)
                 .schedule();
+
         playerJoinCheckTask = new PlayerJoinCheckTask(platform);
+
         getServer().getScheduler()
                 .buildTask(this, playerJoinCheckTask)
                 .delay(1, TimeUnit.SECONDS)
                 .repeat(1, TimeUnit.SECONDS)
                 .schedule();
+
         serverEventSenderTask = new ServerEventSenderTask(platform, configuration.isVerbose());
+
         getServer().getScheduler()
                 .buildTask(this, serverEventSenderTask)
                 .delay(1, TimeUnit.MINUTES)
                 .repeat(1, TimeUnit.MINUTES)
                 .schedule();
 
-        // Initialize and register commands.
-        BuycraftCommand command = new BuycraftCommand(this);
-        command.getSubcommandMap().put("forcecheck", new ForceCheckSubcommand(this));
-        command.getSubcommandMap().put("secret", new SecretSubcommand(this));
-        command.getSubcommandMap().put("info", new InformationSubcommand(this));
-        command.getSubcommandMap().put("report", new ReportCommand(this));
-        command.getSubcommandMap().put("coupon", new CouponSubcommand(this));
-        getServer().getCommandManager().register("tebex", command, "buycraft");
+        if (configuration.isAdminCommandsEnabled()) {
+            BuycraftCommand command = new BuycraftCommand(this);
+            command.getSubcommandMap().put("forcecheck", new ForceCheckSubcommand(this));
+            command.getSubcommandMap().put("info", new InformationSubcommand(this));
+            getServer().getCommandManager().register("tebex", command);
+        }
 
         // Send data to Keen IO
         if (serverInformation != null) {
@@ -221,8 +210,8 @@ public class BuycraftPlugin {
                 ServerEvent.JOIN_EVENT,
                 new Date()
         ));
-
         QueuedPlayer qp = getDuePlayerFetcher().fetchAndRemoveDuePlayer(event.getPlayer().getUsername());
+
         if (qp != null) {
             getPlayerJoinCheckTask().queue(qp);
         }
@@ -233,7 +222,6 @@ public class BuycraftPlugin {
         if (getApiClient() == null) {
             return;
         }
-
         serverEventSenderTask.queueEvent(new ServerEvent(
                 event.getPlayer().getUniqueId().toString().replace("-", ""),
                 event.getPlayer().getUsername(),

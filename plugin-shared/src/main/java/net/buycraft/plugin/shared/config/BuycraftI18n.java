@@ -18,8 +18,7 @@ public class BuycraftI18n {
 
     public BuycraftI18n(Locale locale) {
         try {
-            bundle = ResourceBundle.getBundle("buycraftx_messages", locale,
-                    BuycraftI18n.class.getClassLoader());
+            bundle = ResourceBundle.getBundle("buycraftx_messages", locale, BuycraftI18n.class.getClassLoader());
         } catch (Exception e) {
             new RuntimeException("Failed to load i18n files! Will be using message ids as a replacement", e).printStackTrace();
         }

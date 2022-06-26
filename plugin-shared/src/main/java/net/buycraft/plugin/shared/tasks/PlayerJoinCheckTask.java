@@ -18,6 +18,7 @@ public class PlayerJoinCheckTask implements Runnable {
     @Override
     public void run() {
         QueuedPlayer qp = queuedPlayers.poll();
+
         if (qp != null) {
             platform.executeAsync(new PlayerCommandExecutor(qp, platform));
         }
